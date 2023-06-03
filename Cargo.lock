@@ -837,6 +837,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "evalexpr"
+version = "11.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec3b4e80fd8edee77d6fc35d59862d5765dae7512a95f49fd7bf03847c85b26a"
+
+[[package]]
 name = "event-listener"
 version = "2.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1074,6 +1080,7 @@ dependencies = [
  "eframe",
  "egui",
  "env_logger",
+ "evalexpr",
 ]
 
 [[package]]
