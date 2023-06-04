@@ -24,29 +24,37 @@ impl MathExpression {
     }
 
     fn convert_to_evaluable(expr: String) -> String {
-        expr.replace("ln(", "math::ln(")
-            .replace("log(", "math::log(")
-            .replace("log2(", "math::log2(")
-            .replace("log10(", "math::log10(")
-            .replace("exp(", "math::exp(")
-            .replace("exp2(", "math::exp2(")
-            .replace("pow(", "math::pow(")
-            .replace("cos(", "math::cos(")
-            .replace("acos(", "math::acos(")
-            .replace("cosh(", "math::cosh(")
-            .replace("acosh(", "math::acosh(")
-            .replace("sin(", "math::sin(")
-            .replace("asin(", "math::asin(")
-            .replace("sinh(", "math::sinh(")
-            .replace("asinh(", "math::asinh(")
-            .replace("tan(", "math::tan(")
-            .replace("atan(", "math::atan(")
-            .replace("atan2(", "math::atan2(")
-            .replace("tanh(", "math::tanh(")
-            .replace("atanh(", "math::atanh(")
-            .replace("sqrt(", "math::sqrt(")
-            .replace("cbrt(", "math::cbrt(")
-            .replace("hypot(", "math::hypot(")
-            .replace("abs(", "math::abs(")
+        let mut math_keywords = vec![];
+
+        let (mut current_word, mut current_word_start) = (String::new(), 0);
+        for (i, ch) in expr.chars().enumerate() {
+            match ch.is_ascii_alphabetic() {
+                true => match current_word == *"" {
+                    true => {
+                        current_word = format!("{ch}");
+                        current_word_start = i
+                    }
+                    false => current_word.push(ch),
+                },
+                false => {
+                    match current_word.as_str() {
+                        "x" | "" => (),
+                        _ => math_keywords.push((current_word_start, i - 1, current_word.clone())),
+                    }
+                    current_word = String::new()
+                }
+            }
+        }
+
+        let mut evaluable_expr = expr;
+        for (start_idx, _, _) in math_keywords.iter().rev() {
+            let indexable = evaluable_expr.as_str();
+            evaluable_expr = format!(
+                "{}math::{}",
+                &indexable[..*start_idx],
+                &indexable[*start_idx..]
+            )
+        }
+        evaluable_expr
     }
 }
