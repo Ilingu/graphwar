@@ -1,4 +1,7 @@
-use egui::plot::{Line, PlotPoints, PlotUi};
+use egui::{
+    plot::{Line, PlotPoints, PlotUi},
+    Vec2,
+};
 
 use crate::eval::MathExpression;
 
@@ -20,13 +23,21 @@ pub fn get_graph_plot_points(
 
 pub trait Plotter {
     fn render_graph(&mut self, math_expr: &MathExpression, graph_res: usize);
+    fn render_obstacles(&mut self, obstacles_number: usize);
+    fn render_player(&mut self, position: Vec2);
+    fn render_ennemies(&mut self, positions: Vec<Vec2>);
 }
 
 impl Plotter for PlotUi {
     fn render_graph(&mut self, math_expr: &MathExpression, graph_res: usize) {
-        let line = Line::new(get_graph_plot_points(math_expr, (-10, 10), graph_res));
+        let line = Line::new(get_graph_plot_points(math_expr, (-25, 25), graph_res));
         self.line(line);
     }
+    fn render_obstacles(&mut self, obstacles_number: usize) {}
+    fn render_player(&mut self, position: Vec2) {
+        let Vec2 { x, y } = position;
+    }
+    fn render_ennemies(&mut self, positions: Vec<Vec2>) {}
 }
 
 // This is a circle

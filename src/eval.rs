@@ -1,3 +1,5 @@
+use std::f64::consts::PI;
+
 use evalexpr::{eval_number, EvalexprError};
 
 pub struct MathExpression {
@@ -45,15 +47,32 @@ impl MathExpression {
                 }
             }
         }
+        match current_word.as_str() {
+            "x" | "" => (),
+            _ => math_keywords.push((current_word_start, expr.len() - 1, current_word.clone())),
+        }
 
         let mut evaluable_expr = expr;
-        for (start_idx, _, _) in math_keywords.iter().rev() {
+        for (start_idx, end_idx, content) in math_keywords.iter().rev() {
             let indexable = evaluable_expr.as_str();
-            evaluable_expr = format!(
-                "{}math::{}",
-                &indexable[..*start_idx],
-                &indexable[*start_idx..]
-            )
+
+            match content.to_lowercase().as_str() {
+                "pi" => {
+                    evaluable_expr = format!(
+                        "{}{}{}",
+                        &indexable[..*start_idx],
+                        PI,
+                        &indexable[*end_idx + 1..]
+                    )
+                }
+                _ => {
+                    evaluable_expr = format!(
+                        "{}math::{}",
+                        &indexable[..*start_idx],
+                        &indexable[*start_idx..]
+                    )
+                }
+            }
         }
         evaluable_expr
     }
