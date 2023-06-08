@@ -1,5 +1,5 @@
 use egui::{
-    plot::{Line, PlotPoints, PlotUi},
+    plot::{Line, Plot, PlotPoint, PlotPoints, PlotUi},
     Vec2,
 };
 
@@ -21,17 +21,31 @@ pub fn get_graph_plot_points(
         .collect()
 }
 
+pub fn get_app_plot() -> Plot {
+    Plot::new("game_graph")
+        // block all plot camera movements
+        .allow_zoom(false)
+        .allow_drag(false)
+        .allow_boxed_zoom(false)
+        .allow_scroll(false)
+        // block plot bounds to [-25, 25] in the x and y axes
+        .include_x(-25.0)
+        .include_x(25.0)
+        .include_y(-25.0)
+        .include_y(25.0)
+}
+
 pub trait Plotter {
-    fn render_graph(&mut self, math_expr: &MathExpression, graph_res: usize);
+    fn render_graph(&mut self, points: &[PlotPoint]);
     fn render_obstacles(&mut self, obstacles_number: usize);
     fn render_player(&mut self, position: Vec2);
     fn render_ennemies(&mut self, positions: Vec<Vec2>);
 }
 
 impl Plotter for PlotUi {
-    fn render_graph(&mut self, math_expr: &MathExpression, graph_res: usize) {
-        let line = Line::new(get_graph_plot_points(math_expr, (-25, 25), graph_res));
-        self.line(line);
+    fn render_graph(&mut self, points: &[PlotPoint]) {
+        let points: PlotPoints = points.iter().map(|&PlotPoint { x, y }| [x, y]).collect();
+        self.line(Line::new(points).width(2.0));
     }
     fn render_obstacles(&mut self, obstacles_number: usize) {}
     fn render_player(&mut self, position: Vec2) {

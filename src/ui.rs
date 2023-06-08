@@ -39,20 +39,14 @@ impl Message {
             now: Instant::now(),
         }
     }
-    pub fn default() -> Self {
-        Message {
-            content: String::new(),
-            duration: Duration::from_secs(0),
-            msg_type: UITypes::Neutral,
-            now: Instant::now(),
-        }
-    }
-
-    /*
-    pub fn is_empty(&self) -> bool {
-        self.content.is_empty()
-    }
-    */
+    // pub fn default() -> Self {
+    //     Message {
+    //         content: String::new(),
+    //         duration: Duration::from_secs(0),
+    //         msg_type: UITypes::Neutral,
+    //         now: Instant::now(),
+    //     }
+    // }
 
     pub fn render(&self) -> RichText {
         rich_text(&self.content, self.msg_type)
