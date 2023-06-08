@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use egui::{Color32, FontId, RichText};
+use egui::{Color32, ColorImage, FontId, RichText};
 
 #[derive(Clone, Copy)]
 pub enum UITypes {
@@ -39,14 +39,6 @@ impl Message {
             now: Instant::now(),
         }
     }
-    // pub fn default() -> Self {
-    //     Message {
-    //         content: String::new(),
-    //         duration: Duration::from_secs(0),
-    //         msg_type: UITypes::Neutral,
-    //         now: Instant::now(),
-    //     }
-    // }
 
     pub fn render(&self) -> RichText {
         rich_text(&self.content, self.msg_type)
@@ -55,4 +47,12 @@ impl Message {
     pub fn is_expired(&self) -> bool {
         self.now.elapsed() >= self.duration
     }
+}
+
+pub fn load_image(image_data: &[u8]) -> Result<ColorImage, image::ImageError> {
+    let image = image::load_from_memory(image_data)?;
+    let size = [image.width() as _, image.height() as _];
+    let image_buffer = image.to_rgba8();
+    let pixels = image_buffer.as_flat_samples();
+    Ok(ColorImage::from_rgba_unmultiplied(size, pixels.as_slice()))
 }

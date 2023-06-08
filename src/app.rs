@@ -1,17 +1,28 @@
 use std::time::Duration;
 
 use egui::plot::PlotPoint;
+use egui_extras::RetainedImage;
+
+use rand::Rng;
 
 use crate::{
     eval::MathExpression,
     plotter::{get_app_plot, get_graph_plot_points, Plotter},
-    ui::{rich_text, Message, UITypes},
+    ui::{load_image, rich_text, Message, UITypes},
 };
 
 pub struct GraphWar {
     equation: String,
+
     graph_cached_points: Option<Vec<PlotPoint>>,
     graph_resolution: usize,
+
+    player: PlotPoint,
+    ennemies: Vec<PlotPoint>,
+
+    player_texture: RetainedImage,
+    ennemy_texture: RetainedImage,
+
     messages: Vec<Message>,
 }
 
@@ -38,15 +49,43 @@ impl GraphWar {
     fn hide_graph(&mut self) {
         self.graph_cached_points = None
     }
+
+    fn spawn_entity() -> PlotPoint {
+        let mut rng = rand::thread_rng();
+        let (x, y) = (
+            rng.gen_range(-25..=25) as f64,
+            rng.gen_range(-25..=25) as f64,
+        );
+        PlotPoint { x, y }
+    }
 }
 
 impl Default for GraphWar {
     fn default() -> Self {
+        let enemies_nums = rand::thread_rng().gen_range(1..=5);
+
+        let image_player_data = include_bytes!("../assets/player.png");
+        let image_ennemy_data = include_bytes!("../assets/ennemy.png");
+
         Self {
-            graph_resolution: 100,
             equation: String::new(),
-            messages: vec![],
+
+            graph_resolution: 100,
             graph_cached_points: None,
+
+            player: Self::spawn_entity(),
+            ennemies: (0..enemies_nums).map(|_| Self::spawn_entity()).collect(),
+
+            player_texture: RetainedImage::from_color_image(
+                "player.png",
+                load_image(image_player_data).unwrap(),
+            ),
+            ennemy_texture: RetainedImage::from_color_image(
+                "ennemy.png",
+                load_image(image_ennemy_data).unwrap(),
+            ),
+
+            messages: vec![],
         }
     }
 }
@@ -77,6 +116,7 @@ impl eframe::App for GraphWar {
                     if let Some(points) = &self.graph_cached_points {
                         plot_ui.render_graph(points);
                     }
+                    plot_ui.render_player_image(self.player, &self.player_texture, ctx)
                 });
             });
 

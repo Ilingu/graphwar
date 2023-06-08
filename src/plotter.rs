@@ -1,7 +1,8 @@
 use egui::{
-    plot::{Line, Plot, PlotPoint, PlotPoints, PlotUi},
-    Vec2,
+    plot::{Line, Plot, PlotImage, PlotPoint, PlotPoints, PlotUi},
+    Context, Vec2,
 };
+use egui_extras::RetainedImage;
 
 use crate::eval::MathExpression;
 
@@ -38,8 +39,8 @@ pub fn get_app_plot() -> Plot {
 pub trait Plotter {
     fn render_graph(&mut self, points: &[PlotPoint]);
     fn render_obstacles(&mut self, obstacles_number: usize);
-    fn render_player(&mut self, position: Vec2);
-    fn render_ennemies(&mut self, positions: Vec<Vec2>);
+    fn render_player_image(&mut self, position: PlotPoint, sprite: &RetainedImage, ctx: &Context);
+    fn render_ennemies(&mut self, positions: &[PlotPoint]);
 }
 
 impl Plotter for PlotUi {
@@ -48,10 +49,14 @@ impl Plotter for PlotUi {
         self.line(Line::new(points).width(2.0));
     }
     fn render_obstacles(&mut self, obstacles_number: usize) {}
-    fn render_player(&mut self, position: Vec2) {
-        let Vec2 { x, y } = position;
+    fn render_player_image(&mut self, position: PlotPoint, sprite: &RetainedImage, ctx: &Context) {
+        self.image(PlotImage::new(
+            sprite.texture_id(ctx),
+            position,
+            Vec2::new(3.0, 4.0),
+        ))
     }
-    fn render_ennemies(&mut self, positions: Vec<Vec2>) {}
+    fn render_ennemies(&mut self, positions: &[PlotPoint]) {}
 }
 
 // This is a circle
