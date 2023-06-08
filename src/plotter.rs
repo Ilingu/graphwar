@@ -1,25 +1,37 @@
+use std::f64::consts::PI;
+
 use egui::{
-    plot::{Line, Plot, PlotImage, PlotPoint, PlotPoints, PlotUi},
-    Context, Vec2,
+    plot::{Line, Plot, PlotPoint, PlotPoints, PlotUi, Polygon},
+    Color32,
 };
-use egui_extras::RetainedImage;
 
 use crate::eval::MathExpression;
 
-pub fn get_graph_plot_points(
+pub fn compute_line_points(
     math_expr: &MathExpression,
+    from_point: &PlotPoint,
     interval: (isize, isize),
     resolution: usize,
 ) -> PlotPoints {
-    ((interval.0 * resolution as isize)..=(interval.1 * resolution as isize))
+    (((interval.0 + from_point.x.abs() as isize) * resolution as isize)
+        ..=((interval.1 + from_point.x.abs() as isize) * resolution as isize))
         .filter_map(|i| {
             let x = i as f64 * 1.0 / resolution as f64;
             match math_expr.compute(x) {
-                Ok(y) => Some([x, y]),
+                Ok(y) => Some([x + from_point.x, y + from_point.y]),
                 Err(_) => None,
             }
         })
         .collect()
+}
+
+pub fn compute_polygon_points(n_gon: usize, amplitude: f64) -> PlotPoints {
+    PlotPoints::new(
+        (0..n_gon)
+            .map(|k| 2.0 * k as f64 * PI / n_gon as f64) // racine nième de l'unité
+            .map(|x| [amplitude * x.cos(), amplitude * x.sin()])
+            .collect(),
+    )
 }
 
 pub fn get_app_plot() -> Plot {
@@ -38,9 +50,9 @@ pub fn get_app_plot() -> Plot {
 
 pub trait Plotter {
     fn render_graph(&mut self, points: &[PlotPoint]);
-    fn render_obstacles(&mut self, obstacles_number: usize);
-    fn render_player_image(&mut self, position: PlotPoint, sprite: &RetainedImage, ctx: &Context);
-    fn render_ennemies(&mut self, positions: &[PlotPoint]);
+    fn render_obstacles(&mut self, sprites: &[Vec<PlotPoint>]);
+    fn render_player(&mut self, sprite: &[PlotPoint]);
+    fn render_ennemies(&mut self, sprites: &[Vec<PlotPoint>]);
 }
 
 impl Plotter for PlotUi {
@@ -48,33 +60,22 @@ impl Plotter for PlotUi {
         let points: PlotPoints = points.iter().map(|&PlotPoint { x, y }| [x, y]).collect();
         self.line(Line::new(points).width(2.0));
     }
-    fn render_obstacles(&mut self, obstacles_number: usize) {}
-    fn render_player_image(&mut self, position: PlotPoint, sprite: &RetainedImage, ctx: &Context) {
-        self.image(PlotImage::new(
-            sprite.texture_id(ctx),
-            position,
-            Vec2::new(3.0, 4.0),
-        ))
+    fn render_obstacles(&mut self, sprites: &[Vec<PlotPoint>]) {
+        for sprite in sprites {
+            let sprite_series: PlotPoints =
+                sprite.iter().map(|&PlotPoint { x, y }| [x, y]).collect();
+            self.polygon(Polygon::new(sprite_series).color(Color32::from_rgb(152, 115, 172)));
+        }
     }
-    fn render_ennemies(&mut self, positions: &[PlotPoint]) {}
+    fn render_player(&mut self, sprite: &[PlotPoint]) {
+        let sprite_series: PlotPoints = sprite.iter().map(|&PlotPoint { x, y }| [x, y]).collect();
+        self.polygon(Polygon::new(sprite_series).color(Color32::LIGHT_GREEN));
+    }
+    fn render_ennemies(&mut self, sprites: &[Vec<PlotPoint>]) {
+        for sprite in sprites {
+            let sprite_series: PlotPoints =
+                sprite.iter().map(|&PlotPoint { x, y }| [x, y]).collect();
+            self.polygon(Polygon::new(sprite_series).color(Color32::LIGHT_RED));
+        }
+    }
 }
-
-// This is a circle
-// plot_ui.polygon(
-//     Polygon::new(PlotPoints::new(
-//         (0..1000)
-//             .map(|k| k as f64)
-//             .map(|k| 2.0 * k * PI / 1000.0) // racine nième de l'unité
-//             .map(|x| [x.cos(), x.sin()])
-//             .collect(),
-//     ))
-//     .color(Color32::from_rgb(255, 0, 0)),
-// );
-
-// this is y=x, on [-2,2]
-// plot_ui.line(Line::new(PlotPoints::new(
-//     ((-2 * PLOT_RESOLUTION)..=(2 * PLOT_RESOLUTION))
-//         .map(|x| x as f64 / PLOT_RESOLUTION as f64)
-//         .map(|x| [x, x])
-//         .collect(),
-// )));
