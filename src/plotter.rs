@@ -50,9 +50,9 @@ pub fn get_app_plot() -> Plot {
 
 pub trait Plotter {
     fn render_graph(&mut self, points: &[PlotPoint], until_frame: usize);
-    fn render_obstacles(&mut self, sprites: &[Vec<PlotPoint>]);
+    fn render_obstacles(&mut self, sprites: &[(Vec<PlotPoint>, PlotPoint, f64)]);
     fn render_player(&mut self, sprite: &[PlotPoint]);
-    fn render_ennemies(&mut self, sprites: &[Vec<PlotPoint>]);
+    fn render_ennemies(&mut self, sprites: &[(Vec<PlotPoint>, PlotPoint)]);
 }
 
 impl Plotter for PlotUi {
@@ -68,10 +68,10 @@ impl Plotter for PlotUi {
             .collect();
         self.line(Line::new(points).width(2.0));
     }
-    fn render_obstacles(&mut self, sprites: &[Vec<PlotPoint>]) {
+    fn render_obstacles(&mut self, sprites: &[(Vec<PlotPoint>, PlotPoint, f64)]) {
         for sprite in sprites {
             let sprite_series: PlotPoints =
-                sprite.iter().map(|&PlotPoint { x, y }| [x, y]).collect();
+                sprite.0.iter().map(|&PlotPoint { x, y }| [x, y]).collect();
             self.polygon(Polygon::new(sprite_series).color(Color32::from_rgb(152, 115, 172)));
         }
     }
@@ -79,10 +79,10 @@ impl Plotter for PlotUi {
         let sprite_series: PlotPoints = sprite.iter().map(|&PlotPoint { x, y }| [x, y]).collect();
         self.polygon(Polygon::new(sprite_series).color(Color32::LIGHT_GREEN));
     }
-    fn render_ennemies(&mut self, sprites: &[Vec<PlotPoint>]) {
+    fn render_ennemies(&mut self, sprites: &[(Vec<PlotPoint>, PlotPoint)]) {
         for sprite in sprites {
             let sprite_series: PlotPoints =
-                sprite.iter().map(|&PlotPoint { x, y }| [x, y]).collect();
+                sprite.0.iter().map(|&PlotPoint { x, y }| [x, y]).collect();
             self.polygon(Polygon::new(sprite_series).color(Color32::LIGHT_RED));
         }
     }

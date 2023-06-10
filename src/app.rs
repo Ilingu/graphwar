@@ -11,10 +11,31 @@ use crate::{
 };
 
 struct EntitiesPos {
-    obstacles: Vec<Vec<PlotPoint>>,
-    player: (Vec<PlotPoint>, PlotPoint),
-    enemies: Vec<Vec<PlotPoint>>,
+    player: (Vec<PlotPoint>, PlotPoint),       // (sprite, position)
+    enemies: Vec<(Vec<PlotPoint>, PlotPoint)>, // Vec<(sprite, position)>
+    obstacles: Vec<(Vec<PlotPoint>, PlotPoint, f64)>, // Vec<(sprite, position, amplitude)>
 }
+
+#[derive(PartialEq, Debug)]
+enum CollisionType {
+    Obstacle,
+    Ennemy,
+}
+
+#[derive(PartialEq, Debug)]
+struct Collision {
+    point: PlotPoint,
+    frame_id: usize,
+    collision_type: CollisionType,
+    entity_id: usize,
+}
+
+#[allow(non_snake_case)]
+fn distance_bewteen_two_points(A: &PlotPoint, B: &PlotPoint) -> f64 {
+    ((B.x - A.x).powi(2) + (B.y - A.y).powi(2)).sqrt()
+}
+
+const ENTITY_AMPLITUDE: f64 = 1.0;
 
 pub struct GraphWar {
     equation: String,
@@ -23,9 +44,9 @@ pub struct GraphWar {
     graph_animation_frame: usize,
     graph_resolution: usize,
 
-    player: (Vec<PlotPoint>, PlotPoint),
-    enemies: Vec<Vec<PlotPoint>>,
-    obstacles: Vec<Vec<PlotPoint>>,
+    player: (Vec<PlotPoint>, PlotPoint), // (sprite, position)
+    enemies: Vec<(Vec<PlotPoint>, PlotPoint)>, // Vec<(sprite, position)>
+    obstacles: Vec<(Vec<PlotPoint>, PlotPoint, f64)>, // Vec<(sprite, position, amplitude)>
 
     messages: Vec<Message>,
 }
@@ -58,8 +79,6 @@ impl Default for GraphWar {
     }
 }
 
-// sqrt(x^2 + y^2)
-
 impl GraphWar {
     fn new_game(&mut self) {
         let EntitiesPos {
@@ -73,12 +92,6 @@ impl GraphWar {
     }
 
     fn compute_all_entities_position() -> EntitiesPos {
-        const ENTITY_AMPLITUDE: f64 = 1.0;
-
-        #[allow(non_snake_case)]
-        let distance_bewteen_two_points =
-            |A: &PlotPoint, B: &PlotPoint| ((B.x - A.x).powi(2) + (B.y - A.y).powi(2)).sqrt();
-
         let mut taken_points: Vec<(PlotPoint, f64)> = vec![];
         let does_position_overlap =
             |taken_points: &Vec<(PlotPoint, f64)>, point_to_check: (&PlotPoint, f64)| {
@@ -104,16 +117,19 @@ impl GraphWar {
                 }
                 taken_points.push((obstacle_pos, amplitude));
 
-                let obstacle_sprite = compute_polygon_points(rng.gen_range(3..=15), amplitude)
-                    .points()
-                    .to_vec();
+                // rng.gen_range(3..=15)
+                let obstacle_sprite = compute_polygon_points(20, amplitude).points().to_vec();
 
-                obstacle_sprite
-                    .iter()
-                    .map(|&PlotPoint { x, y }| [x + obstacle_pos.x, y + obstacle_pos.y])
-                    .collect::<PlotPoints>()
-                    .points()
-                    .to_vec()
+                (
+                    obstacle_sprite
+                        .iter()
+                        .map(|&PlotPoint { x, y }| [x + obstacle_pos.x, y + obstacle_pos.y])
+                        .collect::<PlotPoints>()
+                        .points()
+                        .to_vec(),
+                    obstacle_pos,
+                    amplitude,
+                )
             })
             .collect::<Vec<_>>();
 
@@ -145,12 +161,15 @@ impl GraphWar {
                 }
                 taken_points.push((ennemy_pos, ENTITY_AMPLITUDE));
 
-                entity_sprite
-                    .iter()
-                    .map(|&PlotPoint { x, y }| [x + ennemy_pos.x, y + ennemy_pos.y])
-                    .collect::<PlotPoints>()
-                    .points()
-                    .to_vec()
+                (
+                    entity_sprite
+                        .iter()
+                        .map(|&PlotPoint { x, y }| [x + ennemy_pos.x, y + ennemy_pos.y])
+                        .collect::<PlotPoints>()
+                        .points()
+                        .to_vec(),
+                    ennemy_pos,
+                )
             })
             .collect::<Vec<_>>();
 
@@ -161,15 +180,54 @@ impl GraphWar {
         }
     }
 
-    fn does_it_touch_enemies() {}
-    fn does_it_touch_obstacle(points: &Vec<PlotPoint>) -> (bool, usize) {
-        (false, 0)
+    /// given all the graph points, detect if it touches obstacles or enemies
+    fn detect_collision(&self, points: &[PlotPoint]) -> Option<Vec<Collision>> {
+        let mut collisions = vec![];
+        for (frame_id, point) in points.iter().enumerate() {
+            let is_collision = |entity_point: &PlotPoint, amplitude: f64| {
+                let distance = distance_bewteen_two_points(point, entity_point);
+                distance <= amplitude
+            };
+
+            for (ennemy_id, (_, ennemy_pos)) in self.enemies.iter().enumerate() {
+                if is_collision(ennemy_pos, ENTITY_AMPLITUDE) {
+                    let collision = Collision {
+                        point: *ennemy_pos,
+                        collision_type: CollisionType::Ennemy,
+                        frame_id,
+                        entity_id: ennemy_id,
+                    };
+                    if !collisions.contains(&collision) {
+                        collisions.push(collision);
+                    }
+                }
+            }
+            for (obstacle_id, (_, obstacle_pos, amplitude)) in self.obstacles.iter().enumerate() {
+                if is_collision(obstacle_pos, *amplitude) {
+                    let collision = Collision {
+                        point: *obstacle_pos,
+                        collision_type: CollisionType::Obstacle,
+                        frame_id,
+                        entity_id: obstacle_id,
+                    };
+                    if !collisions.contains(&collision) {
+                        collisions.push(collision);
+                    }
+                }
+            }
+        }
+
+        if collisions.is_empty() {
+            None
+        } else {
+            Some(collisions)
+        }
     }
 
     fn build_graph(&mut self) {
         match MathExpression::new(&self.equation) {
             Ok(math_expr) => {
-                let graph_points = compute_line_points(
+                let mut graph_points = compute_line_points(
                     &math_expr,
                     &self.player.1,
                     (-25, 25),
@@ -177,6 +235,20 @@ impl GraphWar {
                 )
                 .points()
                 .to_vec();
+
+                if let Some(collisions) = self.detect_collision(&graph_points) {
+                    for collision in collisions {
+                        match collision.collision_type {
+                            CollisionType::Obstacle => {
+                                // when a obstacle is encounter it's the graph end. Thus we stop the graph points at this place
+                                graph_points = graph_points[..=collision.frame_id].to_vec();
+                                break;
+                            }
+                            CollisionType::Ennemy => {}
+                        }
+                    }
+                }
+
                 self.graph_cached_points = Some(graph_points);
                 self.graph_animation_frame = 0;
             }
@@ -251,9 +323,6 @@ impl eframe::App for GraphWar {
                     .labelled_by(name_label.id);
                 if equation_text_ui.changed() {
                     self.hide_graph();
-                }
-                if equation_text_ui.lost_focus() {
-                    self.build_graph();
                 }
                 /* graph_resolution is automatic
                 ui.add(
