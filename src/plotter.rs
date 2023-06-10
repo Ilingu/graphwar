@@ -13,8 +13,8 @@ pub fn compute_line_points(
     interval: (isize, isize),
     resolution: usize,
 ) -> PlotPoints {
-    (((interval.0 + from_point.x.abs() as isize) * resolution as isize)
-        ..=((interval.1 + from_point.x.abs() as isize) * resolution as isize))
+    ((-(from_point.x as isize - interval.0) * resolution as isize)
+        ..=((interval.1 - from_point.x as isize) * resolution as isize))
         .filter_map(|i| {
             let x = i as f64 * 1.0 / resolution as f64;
             match math_expr.compute(x) {
@@ -49,15 +49,23 @@ pub fn get_app_plot() -> Plot {
 }
 
 pub trait Plotter {
-    fn render_graph(&mut self, points: &[PlotPoint]);
+    fn render_graph(&mut self, points: &[PlotPoint], until_frame: usize);
     fn render_obstacles(&mut self, sprites: &[Vec<PlotPoint>]);
     fn render_player(&mut self, sprite: &[PlotPoint]);
     fn render_ennemies(&mut self, sprites: &[Vec<PlotPoint>]);
 }
 
 impl Plotter for PlotUi {
-    fn render_graph(&mut self, points: &[PlotPoint]) {
-        let points: PlotPoints = points.iter().map(|&PlotPoint { x, y }| [x, y]).collect();
+    fn render_graph(&mut self, points: &[PlotPoint], until_frame: usize) {
+        let until_frame = match until_frame > points.len() - 1 {
+            true => points.len() - 1,
+            false => until_frame,
+        };
+
+        let points: PlotPoints = points[..=until_frame]
+            .iter()
+            .map(|&PlotPoint { x, y }| [x, y])
+            .collect();
         self.line(Line::new(points).width(2.0));
     }
     fn render_obstacles(&mut self, sprites: &[Vec<PlotPoint>]) {

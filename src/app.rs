@@ -20,6 +20,7 @@ pub struct GraphWar {
     equation: String,
 
     graph_cached_points: Option<Vec<PlotPoint>>,
+    graph_animation_frame: usize,
     graph_resolution: usize,
 
     player: (Vec<PlotPoint>, PlotPoint),
@@ -42,6 +43,7 @@ impl Default for GraphWar {
 
             graph_resolution: 100,
             graph_cached_points: None,
+            graph_animation_frame: 0,
 
             player,
             enemies,
@@ -55,6 +57,8 @@ impl Default for GraphWar {
         }
     }
 }
+
+// sqrt(x^2 + y^2)
 
 impl GraphWar {
     fn new_game(&mut self) {
@@ -70,32 +74,22 @@ impl GraphWar {
 
     fn compute_all_entities_position() -> EntitiesPos {
         const ENTITY_AMPLITUDE: f64 = 1.0;
-        let polygon_bounds = |amplitude: f64, pos: &PlotPoint| {
-            (
-                (amplitude + pos.x, pos.y), // cos(0) -> rightmost point
-                (pos.x - amplitude, pos.y), // cos(PI) -> leftmost point
-                (pos.x, amplitude + pos.y), // sin(PI/2) -> topmost point
-                (pos.x, pos.y - amplitude), // sin(-PI/2) -> bottom most point
-            )
-        };
 
-        type Bounds = ((f64, f64), (f64, f64), (f64, f64), (f64, f64));
-        let mut taken_positions: Vec<Bounds> = vec![];
-        let does_position_overlap = |taken_pos: &Vec<Bounds>, (rmi, lmi, tmi, bmi): Bounds| {
-            for (rmt, lmt, tmt, bmt) in taken_pos {
-                let is_point_inside =
-                    |p: &(f64, f64)| rmt.0 > p.0 && lmt.0 < p.0 && tmt.1 > p.1 && bmt.1 < p.1;
+        #[allow(non_snake_case)]
+        let distance_bewteen_two_points =
+            |A: &PlotPoint, B: &PlotPoint| ((B.x - A.x).powi(2) + (B.y - A.y).powi(2)).sqrt();
 
-                if is_point_inside(&rmi)
-                    || is_point_inside(&lmi)
-                    || is_point_inside(&tmi)
-                    || is_point_inside(&bmi)
-                {
-                    return true;
+        let mut taken_points: Vec<(PlotPoint, f64)> = vec![];
+        let does_position_overlap =
+            |taken_points: &Vec<(PlotPoint, f64)>, point_to_check: (&PlotPoint, f64)| {
+                for taken_point in taken_points {
+                    let distance = distance_bewteen_two_points(point_to_check.0, &taken_point.0);
+                    if distance <= taken_point.1 + point_to_check.1 {
+                        return true;
+                    }
                 }
-            }
-            false
-        };
+                false
+            };
 
         let mut rng = rand::thread_rng();
         let obstacles_nums = rng.gen_range(5..=15);
@@ -103,14 +97,12 @@ impl GraphWar {
         let obstacles_sprites = (0..obstacles_nums)
             .map(|_| {
                 let mut obstacle_pos = Self::spawn_entity();
-                let amplitude = rng.gen_range(2..=6) as f64;
-                while does_position_overlap(
-                    &taken_positions,
-                    polygon_bounds(amplitude, &obstacle_pos),
-                ) {
+                let mut amplitude = rng.gen_range(2..=6) as f64;
+                while does_position_overlap(&taken_points, (&obstacle_pos, amplitude)) {
                     obstacle_pos = Self::spawn_entity();
+                    amplitude = rng.gen_range(2..=6) as f64;
                 }
-                taken_positions.push(polygon_bounds(amplitude, &obstacle_pos));
+                taken_points.push((obstacle_pos, amplitude));
 
                 let obstacle_sprite = compute_polygon_points(rng.gen_range(3..=15), amplitude)
                     .points()
@@ -130,13 +122,10 @@ impl GraphWar {
             .to_vec();
 
         let mut player_pos = Self::spawn_entity();
-        while does_position_overlap(
-            &taken_positions,
-            polygon_bounds(ENTITY_AMPLITUDE, &player_pos),
-        ) {
+        while does_position_overlap(&taken_points, (&player_pos, ENTITY_AMPLITUDE)) {
             player_pos = Self::spawn_entity();
         }
-        taken_positions.push(polygon_bounds(ENTITY_AMPLITUDE, &player_pos));
+        taken_points.push((player_pos, ENTITY_AMPLITUDE));
 
         let player_sprite = entity_sprite
             .iter()
@@ -145,22 +134,16 @@ impl GraphWar {
             .points()
             .to_vec();
 
-        let distance_to_player = |pos: &PlotPoint| {
-            ((pos.x - player_pos.x).powi(2) + (pos.y - player_pos.y).powi(2)).sqrt()
-        };
-
         let enemies_nums = rng.gen_range(2..=5);
         let enemies_sprites = (0..enemies_nums)
             .map(|_| {
                 let mut ennemy_pos = Self::spawn_entity();
-                while does_position_overlap(
-                    &taken_positions,
-                    polygon_bounds(ENTITY_AMPLITUDE, &ennemy_pos),
-                ) && distance_to_player(&ennemy_pos) <= 10.0
+                while does_position_overlap(&taken_points, (&ennemy_pos, ENTITY_AMPLITUDE))
+                    || distance_bewteen_two_points(&player_pos, &ennemy_pos) <= 10.0
                 {
                     ennemy_pos = Self::spawn_entity();
                 }
-                taken_positions.push(polygon_bounds(ENTITY_AMPLITUDE, &ennemy_pos));
+                taken_points.push((ennemy_pos, ENTITY_AMPLITUDE));
 
                 entity_sprite
                     .iter()
@@ -178,19 +161,24 @@ impl GraphWar {
         }
     }
 
+    fn does_it_touch_enemies() {}
+    fn does_it_touch_obstacle(points: &Vec<PlotPoint>) -> (bool, usize) {
+        (false, 0)
+    }
+
     fn build_graph(&mut self) {
         match MathExpression::new(&self.equation) {
             Ok(math_expr) => {
-                self.graph_cached_points = Some(
-                    compute_line_points(
-                        &math_expr,
-                        &self.player.1,
-                        (-25, 25),
-                        self.graph_resolution,
-                    )
-                    .points()
-                    .to_vec(),
-                );
+                let graph_points = compute_line_points(
+                    &math_expr,
+                    &self.player.1,
+                    (-25, 25),
+                    self.graph_resolution,
+                )
+                .points()
+                .to_vec();
+                self.graph_cached_points = Some(graph_points);
+                self.graph_animation_frame = 0;
             }
             Err(_) => {
                 self.messages.insert(
@@ -243,7 +231,11 @@ impl eframe::App for GraphWar {
 
                 plot.show(ui, |plot_ui| {
                     if let Some(points) = &self.graph_cached_points {
-                        plot_ui.render_graph(points);
+                        plot_ui.render_graph(points, self.graph_animation_frame);
+                        if self.graph_animation_frame < points.len() - 1 {
+                            self.graph_animation_frame += 100;
+                            ctx.request_repaint();
+                        }
                     }
                     plot_ui.render_player(&self.player.0);
                     plot_ui.render_ennemies(&self.enemies);
