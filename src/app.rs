@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use egui::plot::{PlotPoint, PlotPoints};
 
+use evalexpr::EvalexprError;
 use rand::Rng;
 
 use crate::{
@@ -24,7 +25,7 @@ enum CollisionType {
 
 #[derive(PartialEq, Debug)]
 struct Collision {
-    point: PlotPoint,
+    entity_point: PlotPoint,
     frame_id: usize,
     collision_type: CollisionType,
     entity_id: usize,
@@ -42,7 +43,9 @@ pub struct GraphWar {
 
     graph_cached_points: Option<Vec<PlotPoint>>,
     graph_animation_frame: usize,
+    graph_animation_speed: usize,
     graph_resolution: usize,
+    enemies_killed: Vec<(PlotPoint, usize)>, // (enemy_pos, frame_id)
 
     player: (Vec<PlotPoint>, PlotPoint), // (sprite, position)
     enemies: Vec<(Vec<PlotPoint>, PlotPoint)>, // Vec<(sprite, position)>
@@ -65,6 +68,8 @@ impl Default for GraphWar {
             graph_resolution: 100,
             graph_cached_points: None,
             graph_animation_frame: 0,
+            graph_animation_speed: 85,
+            enemies_killed: vec![],
 
             player,
             enemies,
@@ -72,7 +77,7 @@ impl Default for GraphWar {
 
             messages: vec![Message::new(
                 "Your are the green thingy, your goal is to aim at the red thingies without touching the purpule thingies".to_string(),
-                Duration::from_secs(10),
+                Duration::from_secs(6),
                 UITypes::Info,
             )],
         }
@@ -89,6 +94,9 @@ impl GraphWar {
         self.obstacles = obstacles;
         self.player = player;
         self.enemies = enemies;
+        self.enemies_killed = vec![];
+        self.graph_cached_points = None;
+        self.graph_animation_frame = 0;
     }
 
     fn compute_all_entities_position() -> EntitiesPos {
@@ -192,7 +200,7 @@ impl GraphWar {
             for (ennemy_id, (_, ennemy_pos)) in self.enemies.iter().enumerate() {
                 if is_collision(ennemy_pos, ENTITY_AMPLITUDE) {
                     let collision = Collision {
-                        point: *ennemy_pos,
+                        entity_point: *ennemy_pos,
                         collision_type: CollisionType::Ennemy,
                         frame_id,
                         entity_id: ennemy_id,
@@ -205,7 +213,7 @@ impl GraphWar {
             for (obstacle_id, (_, obstacle_pos, amplitude)) in self.obstacles.iter().enumerate() {
                 if is_collision(obstacle_pos, *amplitude) {
                     let collision = Collision {
-                        point: *obstacle_pos,
+                        entity_point: *obstacle_pos,
                         collision_type: CollisionType::Obstacle,
                         frame_id,
                         entity_id: obstacle_id,
@@ -244,7 +252,9 @@ impl GraphWar {
                                 graph_points = graph_points[..=collision.frame_id].to_vec();
                                 break;
                             }
-                            CollisionType::Ennemy => {}
+                            CollisionType::Ennemy => self
+                                .enemies_killed
+                                .push((collision.entity_point, collision.frame_id)),
                         }
                     }
                 }
@@ -252,14 +262,14 @@ impl GraphWar {
                 self.graph_cached_points = Some(graph_points);
                 self.graph_animation_frame = 0;
             }
-            Err(_) => {
+            Err(why) => {
+                let reason = match why {
+                    EvalexprError::CustomMessage(reason) => reason,
+                    _ => "unevaluable mathematical expression".to_string(),
+                };
                 self.messages.insert(
                     0,
-                    Message::new(
-                        "unevaluable mathematical expression".to_string(),
-                        Duration::from_secs(4),
-                        UITypes::Error,
-                    ),
+                    Message::new(reason, Duration::from_secs(4), UITypes::Error),
                 );
             }
         }
@@ -281,6 +291,10 @@ impl GraphWar {
 
 impl eframe::App for GraphWar {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        if self.enemies.is_empty() {
+            self.new_game();
+        }
+
         let is_messages = !self.messages.is_empty();
         if is_messages {
             self.messages.retain(|msg| !msg.is_expired())
@@ -304,8 +318,23 @@ impl eframe::App for GraphWar {
                 plot.show(ui, |plot_ui| {
                     if let Some(points) = &self.graph_cached_points {
                         plot_ui.render_graph(points, self.graph_animation_frame);
+                        // animation manager: while current frame is not equal to the last frame, continue animation
                         if self.graph_animation_frame < points.len() - 1 {
-                            self.graph_animation_frame += 100;
+                            // delete enemies from app and UI and the animation touch them
+                            {
+                                // get all the enemies touched before the nth frame...
+                                let enemies_touched = self
+                                    .enemies_killed
+                                    .iter()
+                                    .filter(|(_, frame_id)| frame_id <= &self.graph_animation_frame)
+                                    .map(|(entity_pos, _)| *entity_pos)
+                                    .collect::<Vec<_>>();
+                                // ...and delete them
+                                self.enemies
+                                    .retain(|(_, pos)| !enemies_touched.contains(pos));
+                            }
+
+                            self.graph_animation_frame += self.graph_animation_speed;
                             ctx.request_repaint();
                         }
                     }
@@ -324,11 +353,7 @@ impl eframe::App for GraphWar {
                 if equation_text_ui.changed() {
                     self.hide_graph();
                 }
-                /* graph_resolution is automatic
-                ui.add(
-                    egui::Slider::new(&mut self.graph_resolution, 1..=100).text("Graph Resolution"),
-                );
-                */
+
                 ui.add_space(5.0);
                 if ui
                     .button(rich_text("Shoot! 🎯", UITypes::Neutral))
